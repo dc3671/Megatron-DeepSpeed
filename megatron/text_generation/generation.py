@@ -5,6 +5,7 @@
 import torch
 import torch.nn.functional as F
 
+from deepspeed.accelerator import get_accelerator
 from megatron import get_args, get_tokenizer
 from megatron.core import mpu
 from megatron.utils import get_ltor_masks_and_position_ids
@@ -54,7 +55,7 @@ def score_and_return_on_first_stage(model, tokens, lengths):
     if mpu.is_pipeline_last_stage():
         output_log_probs = torch.empty(output_log_probs_size,
                                        dtype=torch.float32,
-                                       device=torch.cuda.current_device())
+                                       device=get_accelerator().current_device_name())
 
     # =============
     # Run infernece
@@ -158,14 +159,14 @@ def generate_tokens_probs_and_return_on_first_stage(
         if return_output_log_probs:
             output_log_probs = torch.empty(output_log_probs_size,
                                            dtype=torch.float32,
-                                           device=torch.cuda.current_device())
+                                           device=get_accelerator().current_device_name())
         generated_sequence_lengths = torch.ones(
                 batch_size, dtype=torch.int64,
-                device=torch.cuda.current_device()) * max_sequence_length
+                device=get_accelerator().current_device_name()) * max_sequence_length
 
     # Whether we have reached a termination id.
     is_generation_done = torch.zeros(batch_size, dtype=torch.uint8,
-                                     device=torch.cuda.current_device())
+                                     device=get_accelerator().current_device_name())
 
     # =============
     # Run infernece
@@ -304,11 +305,12 @@ def beam_search_and_return_on_first_stage(model, tokens, lengths, beam_size, sto
 
     beam_hyp = BeamHypotheses(beam_size, length_penalty)
     best_batches = None
-    done = torch.zeros(1, dtype=torch.uint8, device=torch.cuda.current_device())
+    done = torch.zeros(1, dtype=torch.uint8, device=get_accelerator().current_device_name())
     scores = torch.zeros(beam_size,
                          dtype=torch.float32,
-                         device=torch.cuda.current_device()).unsqueeze(1)
+                         device=get_accelerator().current_device_name()).unsqueeze(1)
     scores_size_tensor, tokens_size_tensor = None, None
+    print(">>> finish init", scores.device, scores_size_tensor.device)
     # =============
     # Run infernece
     # =============
@@ -365,7 +367,7 @@ def beam_search_and_return_on_first_stage(model, tokens, lengths, beam_size, sto
                         break
 
                 if beam_hyp.is_done(best_scores.max().item(), context_length + 1 - prompt_length):
-                    done = torch.ones(1, dtype=torch.uint8, device=torch.cuda.current_device())
+                    done = torch.ones(1, dtype=torch.uint8, device=get_accelerator().current_device_name())
 
                 best_batches = tokens.new([item[2] for item in next_beams])
                 tokens = tokens[best_batches,:]
@@ -402,8 +404,8 @@ def beam_search_and_return_on_first_stage(model, tokens, lengths, beam_size, sto
             tokens = [sorted_hyps[i][1] for i in range(num_return_gen)]
             scores = torch.stack(scores, dim=0)
             tokens = torch.stack(tokens, dim=0)
-            scores_size_tensor = torch.tensor(scores.shape, dtype=torch.int64, device=torch.cuda.current_device())
-            tokens_size_tensor = torch.tensor(tokens.shape, dtype=torch.int64, device=torch.cuda.current_device())
+            scores_size_tensor = torch.tensor(scores.shape, dtype=torch.int64, device=get_accelerator().current_device_name())
+            tokens_size_tensor = torch.tensor(tokens.shape, dtype=torch.int64, device=get_accelerator().current_device_name())
 
         scores_size_tensor = broadcast_from_last_pipeline_stage(1, torch.int64, scores_size_tensor)
         tokens_size_tensor = broadcast_from_last_pipeline_stage(2, torch.int64, tokens_size_tensor)

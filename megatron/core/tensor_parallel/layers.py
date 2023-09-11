@@ -200,6 +200,7 @@ class VocabParallelEmbedding(torch.nn.Module):
         else:
             masked_input = input_
             # Get the embeddings.
+        print(">>> embeddings", masked_input.device, self.weight.device, self.padding_idx, self.max_norm, self.norm_type, self.scale_grad_by_freq, self.sparse)
         output_parallel = F.embedding(masked_input, self.weight,
                                       self.padding_idx, self.max_norm,
                                       self.norm_type, self.scale_grad_by_freq,

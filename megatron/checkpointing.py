@@ -530,6 +530,7 @@ def load_checkpoint(model, optimizer, opt_param_scheduler, load_arg='load', stri
     load_dir = getattr(args, load_arg)
 
     if args.deepspeed:
+        print(">>> load deepspeed")
         if args.finetune:
             loaded_dir, state_dict = model[0].load_checkpoint(load_dir,
                 load_module_strict=strict, load_optimizer_states=False,
@@ -545,6 +546,7 @@ def load_checkpoint(model, optimizer, opt_param_scheduler, load_arg='load', stri
             return 0
         release = False
     else:
+        print(">>> load not deepspeed")
         model = unwrap_model(model)
 
         state_dict, release = _load_base_checkpoint(load_dir, rank0=False)
